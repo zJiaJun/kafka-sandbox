@@ -1,4 +1,4 @@
-package com.github.zjiajun.kafka;
+package com.github.zjiajun.kafka.producer;
 
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
@@ -12,8 +12,10 @@ import java.util.Properties;
 /**
  * Created by zhujiajun
  * 16/3/23 21:33
+ *
+ * kafka 082 版本 生产demo
  */
-public class Producer {
+public class Producer082 {
 
     @SuppressWarnings("unchecked")
     public static void main(String[] args) {
@@ -27,9 +29,9 @@ public class Producer {
         kafka.javaapi.producer.Producer producer = new kafka.javaapi.producer.Producer(producerConfig);
         long t = System.currentTimeMillis();
         List<KeyedMessage<String,byte[]>> keyedMessages = new ArrayList<>();
-        for (int i = 0; i < 1000_00; i++) {
-            byte [] content =  ("kafka_" + i).getBytes();
-            KeyedMessage<String,byte[]> keyedMessage =  new KeyedMessage<>("kafka-topic",String.valueOf(t),content);
+        for (int i = 0; i < 100; i++) {
+            byte [] content =  ("kafka_data" + i).getBytes();
+            KeyedMessage<String,byte[]> keyedMessage =  new KeyedMessage<>("topictest",String.valueOf(t),content);
             keyedMessages.add(keyedMessage);
         }
         producer.send(keyedMessages);
