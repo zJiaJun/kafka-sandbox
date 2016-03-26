@@ -20,13 +20,13 @@ public class Consumer090 {
         properties.put("bootstrap.servers","127.0.0.1:9092");
         properties.put("group.id", "consumer_090");
         properties.put("enable.auto.commit", "true");
-        properties.put("auto.commit.interval.ms", "1000");
+        properties.put("auto.commit.interval.ms", "10000");
         properties.put("session.timeout.ms", "30000");
         properties.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
         properties.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 
         KafkaConsumer<String,String> kafkaConsumer = new KafkaConsumer<>(properties);
-        kafkaConsumer.subscribe(Collections.singletonList("topictest"));
+        kafkaConsumer.subscribe(Collections.singletonList("topic_090"));
         while (true) {
             ConsumerRecords<String, String> consumerRecords = kafkaConsumer.poll(100);
             for (ConsumerRecord<String, String> record : consumerRecords) {

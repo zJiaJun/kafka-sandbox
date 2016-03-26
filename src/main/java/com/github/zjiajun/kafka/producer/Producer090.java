@@ -26,13 +26,12 @@ public class Producer090 {
         props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
 
         KafkaProducer<String,String> kafkaProducer = new KafkaProducer<>(props);
-
-        while (true) {
-            ProducerRecord<String,String> record = new ProducerRecord<>("topictest","kafka090_key","kafka090_value");
+        for (int i = 0; i < 10; i++) {
+            ProducerRecord<String,String> record = new ProducerRecord<>("topic_090","kafka090_key_" + i,"kafka090_value_" + i);
             kafkaProducer.send(record);
-            System.out.println("------------Producer data-------------");
+            System.out.println(record);
             TimeUnit.SECONDS.sleep(1);
         }
-
+        kafkaProducer.close();
     }
 }

@@ -31,8 +31,6 @@ public class ZkHandler {
     public static void main(String[] args) {
         ZkHandler zkHandler = new ZkHandler();
         zkHandler.deleteNode("/kafka");
-        zkHandler.deleteNode("/consumers");
-
 
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override

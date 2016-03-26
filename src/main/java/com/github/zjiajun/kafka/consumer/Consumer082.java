@@ -67,7 +67,7 @@ public class Consumer082 {
     public static void main(String[] args) throws InterruptedException {
         String zkConnect = "127.0.0.1:2181/kafka";
         String groupId = "kafka_consumer_demo";
-        String topic = "topictest";
+        String topic = "topic_082";
         Consumer082 consumer082 = new Consumer082(zkConnect,groupId,topic);
         consumer082.run(5);
 

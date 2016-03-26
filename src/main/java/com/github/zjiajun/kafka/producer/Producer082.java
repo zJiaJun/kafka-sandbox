@@ -27,11 +27,10 @@ public class Producer082 {
 
         ProducerConfig producerConfig = new ProducerConfig(properties);
         kafka.javaapi.producer.Producer producer = new kafka.javaapi.producer.Producer(producerConfig);
-        long t = System.currentTimeMillis();
         List<KeyedMessage<String,byte[]>> keyedMessages = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            byte [] content =  ("kafka_data" + i).getBytes();
-            KeyedMessage<String,byte[]> keyedMessage =  new KeyedMessage<>("topictest",String.valueOf(t),content);
+            byte [] content =  ("kafka082_value_" + i).getBytes();
+            KeyedMessage<String,byte[]> keyedMessage =  new KeyedMessage<>("topic_082","kafka082_key_" + i,content);
             keyedMessages.add(keyedMessage);
         }
         producer.send(keyedMessages);
