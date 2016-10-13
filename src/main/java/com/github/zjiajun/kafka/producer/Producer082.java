@@ -18,7 +18,6 @@ import java.util.Properties;
  */
 public class Producer082 {
 
-    @SuppressWarnings("unchecked")
     public static void main(String[] args) {
         long watch = System.currentTimeMillis();
         Properties properties = new Properties();

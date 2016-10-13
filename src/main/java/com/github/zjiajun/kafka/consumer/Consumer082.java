@@ -17,7 +17,6 @@ import java.util.Properties;
  *
  * kafka 082 版本 消费demo
  */
-@SuppressWarnings("unchecked")
 public class Consumer082 {
 
 
