@@ -1,8 +1,9 @@
 package com.github.zjiajun.kafka.producer;
 
+import com.github.zjiajun.kafka.partitioner.RandomPartitioner;
+import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
-import kafka.serializer.DefaultEncoder;
 import kafka.serializer.StringEncoder;
 
 import java.util.ArrayList;
@@ -22,16 +23,26 @@ public class Producer082 {
         long watch = System.currentTimeMillis();
         Properties properties = new Properties();
         properties.put("metadata.broker.list","127.0.0.1:9092");
-        properties.put("serializer.class", DefaultEncoder.class.getCanonicalName());
+        properties.put("producer.type","sync");
+        properties.put("serializer.class", StringEncoder.class.getCanonicalName());
         properties.put("key.serializer.class", StringEncoder.class.getCanonicalName());
+        properties.put("partitioner.class", RandomPartitioner.class.getCanonicalName());
+
+        //Async use
+        properties.put("queue.buffering.max.ms","5000");
+        properties.put("queue.buffering.max.messages","10000");
+        properties.put("queue.enqueue.timeout.ms","-1");
+        properties.put("batch.num.messages","200");
+
 
         ProducerConfig producerConfig = new ProducerConfig(properties);
-        kafka.javaapi.producer.Producer producer = new kafka.javaapi.producer.Producer(producerConfig);
-        List<KeyedMessage<String,byte[]>> keyedMessages = new ArrayList<>();
-        for (int i = 0; i < 100; i++) {
-            byte [] content =  ("kafka082_value_" + i).getBytes();
-            KeyedMessage<String,byte[]> keyedMessage =  new KeyedMessage<>("topic_082","kafka082_key_" + i,content);
-            keyedMessages.add(keyedMessage);
+        Producer<String,String> producer = new Producer<>(producerConfig);
+        List<KeyedMessage<String,String>> keyedMessages = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3;j++) {
+                KeyedMessage<String, String> keyedMessage = new KeyedMessage<>("test-topic", String.valueOf(i), "message_" + i + "_" + j);
+                keyedMessages.add(keyedMessage);
+            }
         }
         producer.send(keyedMessages);
         System.out.println(System.currentTimeMillis() - watch + " :ms");

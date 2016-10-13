@@ -15,7 +15,7 @@ public class ZkHandler {
 
     public ZkHandler() {
         RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
-        curatorFramework = CuratorFrameworkFactory.builder().connectString("127.0.0.1:2181,127.0.0.1:2182,127.0.0.1:2183")
+        curatorFramework = CuratorFrameworkFactory.builder().connectString("127.0.0.1:2181")
                 .sessionTimeoutMs(10000).retryPolicy(retryPolicy).build();
         curatorFramework.start();
     }

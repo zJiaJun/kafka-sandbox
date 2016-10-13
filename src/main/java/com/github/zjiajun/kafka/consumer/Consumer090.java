@@ -1,12 +1,5 @@
 package com.github.zjiajun.kafka.consumer;
 
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-
-import java.util.Collections;
-import java.util.Properties;
-
 /**
  * Created by zhujiajun
  * 16/3/25 22:05
@@ -15,6 +8,7 @@ import java.util.Properties;
  */
 public class Consumer090 {
 
+    /*
     public static void main(String[] args) {
         Properties properties = new Properties();
         properties.put("bootstrap.servers","127.0.0.1:9092");
@@ -35,4 +29,5 @@ public class Consumer090 {
             }
         }
     }
+    */
 }
