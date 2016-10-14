@@ -21,7 +21,6 @@ public class Consumer082 {
 
 
     public static void main(String[] args) {
-        System.out.println(System.getProperty("host.name"));
         args = new String[]{"127.0.0.1:2181/kafka0.8.2.2", "test-topic", "group1", "consumer1"};
         String zk = args[0];
         String topic = args[1];

@@ -14,6 +14,7 @@ import java.util.Random;
 public class RandomPartitioner implements Partitioner {
 
     public RandomPartitioner(VerifiableProperties verifiableProperties) {
+        System.err.println("构造函数: " + this);
         /*
          根据配置的partitioner.class来构建Partitioner对象，源代码如下
          Utils.createObject[Partitioner](config.partitionerClass, config.props)
@@ -25,6 +26,7 @@ public class RandomPartitioner implements Partitioner {
 
     @Override
     public int partition(Object key, int numPartitions) {
+        System.err.println("partition method: " + this);
         return random.nextInt(numPartitions);
     }
 
