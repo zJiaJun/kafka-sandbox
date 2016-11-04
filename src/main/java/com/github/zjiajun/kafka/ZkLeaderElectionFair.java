@@ -1,11 +1,14 @@
 package com.github.zjiajun.kafka;
 
+import com.github.zjiajun.kafka.zk.NodeInfo;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.*;
 
 /**
@@ -19,19 +22,23 @@ import java.util.concurrent.*;
  *  要能处理部分参与方等待过程中失败的情况
  *  实现2个选举方法，一个阻塞直到获得leadership，另一个竞选成功则返回true，否则返回失败，但要能支持回调
  */
-public class ZkLeaderElectionFair {
+public class ZkLeaderElectionFair implements Watcher {
 
+    private NodeInfo nodeInfo;
     private ZooKeeper zooKeeper;
     private final String rootPath;
+    private final ElectionCallback callback;
     private final CountDownLatch initZkLatch = new CountDownLatch(1);
     private final CountDownLatch leaderLatch = new CountDownLatch(1);
 
-    public String getRootPath() {
-        return rootPath;
+    private interface ElectionCallback {
+
+        void becomeLeader(String leaderPath);
     }
 
-    public ZkLeaderElectionFair(String connectString, int sessionTimeout, String rootPath) {
+    public ZkLeaderElectionFair(String connectString, int sessionTimeout, String rootPath, ElectionCallback callback) {
         this.rootPath = rootPath;
+        this.callback = callback;
         initZk(connectString,sessionTimeout);
         initRootPath();
     }
@@ -87,11 +94,10 @@ public class ZkLeaderElectionFair {
         return rePath;
     }
 
-    private List<String> getChildrenAndSort(String path) {
+    private List<String> getChildren(String path) {
         List<String> children = null;
         try {
             children = zooKeeper.getChildren(path, false);
-            children.sort(String::compareTo);
         } catch (KeeperException | InterruptedException e) {
             e.printStackTrace();
         }
@@ -99,100 +105,100 @@ public class ZkLeaderElectionFair {
     }
 
 
-    private interface ElectionCallback {
-
-        void becomeLeader(String leaderPath);
-    }
-
-    private class SeqNodeWatch implements Watcher {
-
-        private String path;
-        private ElectionCallback callback;
-
-        public SeqNodeWatch(String path, ElectionCallback callback) {
-            this.path = path;
-            this.callback = callback;
-        }
-
-        @Override
-        public void process(WatchedEvent event) {
-            switch (event.getType()) {
-                case NodeDeleted:
-                    System.err.format("Node %s deleted or crash \n", event.getPath());
-                    List<String> children = getChildrenAndSort(rootPath);
-                    boolean flag = clientNodeCompareChildren(path, children);
-                    if (flag) {
-                        String watchPath = getPrevPath(path,children);
-                        exists(watchPath, new SeqNodeWatch(path, callback));
-                    } else {
-                        if (exists(path,null)) {
-                            System.err.format("Node %s become leader in watch\n", path);
-                            if (callback == null)
-                                leaderLatch.countDown();
-                            else
-                                callback.becomeLeader(path);
-                        } else {
-                            System.err.format("Node %s already deleted\n",path);
-                        }
-                    }
-                    break;
-                default:
-                    break;
+    @Override
+    public void process(WatchedEvent event) {
+        if (Event.EventType.NodeDeleted.equals(event.getType())) {
+            if (!event.getPath().equals(nodeInfo.getNodePath())) {
+                try {
+                    leaderElection(true);
+                } catch (KeeperException | InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
-
         }
     }
 
-    private boolean clientNodeCompareChildren(String path, List<String> children) {
-        String seqNum = getPathSeqNumber(path);
-        Integer seq = Integer.parseInt(seqNum);
-        Integer minChildren = Integer.parseInt(children.get(0));
-        return seq > minChildren;
-    }
 
     private String getPathSeqNumber(String path) {
         return path.substring(path.lastIndexOf("/") + 1, path.length());
     }
 
-    private String getPrevPath(String path, List<String> children) {
-        int index = children.indexOf(getPathSeqNumber(path));
-        return rootPath + "/" + children.get(index - 1);
+    private String getPrevPath(List<NodeInfo> childNodeInfo) {
+        //利用NodeInfo的equals判断
+        int index = childNodeInfo.indexOf(nodeInfo);
+        if (index > 0)
+            return childNodeInfo.get(index - 1).getNodePath(); //获取前一个path
+        throw new RuntimeException("getPrevPath error");
     }
 
-    //path为自己创建的节点
-    private boolean leaderElection(String path, ElectionCallback callback) throws KeeperException, InterruptedException {
-        List<String> children = getChildrenAndSort(rootPath);
-        boolean flag = clientNodeCompareChildren(path ,children);
-        if (flag) { //自己创建的节点比排序后的children中第一个(最小)大,watch前一个node
-            String watchPath = getPrevPath(path,children);
-            System.err.format("%s 比children中最小的大 开始watch前一个node %s,等待...\n", path, watchPath);
-            exists(watchPath, new SeqNodeWatch(path, callback));
+    private boolean leaderElection(boolean isWatchHandler) throws KeeperException, InterruptedException {
+        String nodePath = nodeInfo.getNodePath();
+        List<NodeInfo> childNodeInfo = makeChildNodeInfo();
+        if (nodeInfo.getId().equals(childNodeInfo.get(0).getId())) {
+            if (isWatchHandler && exists(nodePath, null)) {
+                System.err.format("Node %s become leader in watch\n", nodePath);
+                if (callback == null)
+                    leaderLatch.countDown();
+                else
+                    callback.becomeLeader(nodePath);
+            }
+            System.err.format("%s become leader\n", nodePath);
+            return true;
+        } else {
+            String prevWatchPath = getPrevPath(childNodeInfo);
+            System.err.format("%s 比childNode中最小的大,开始watch前一个node %s,等待...\n", nodePath, prevWatchPath);
+            exists(prevWatchPath, this);
             if (callback == null) {
                 leaderLatch.await();//阻塞等待watch得到通知并再次选举leader成功
                 return true;
-            } else {
-                return false;
-            }
-        } else { //自己创建的节点比第一个(最小)小，或者等于,既成为leader
-            System.err.format("%s become leader\n", path);
-            return true;
+            } else return false;
         }
     }
 
+    /**
+     * 本机生成的node信息
+     */
+    private void makeNodeInfo() {
+        String nodePath = createNode(rootPath + "/", null, CreateMode.EPHEMERAL_SEQUENTIAL);
+        Integer id = Integer.parseInt(getPathSeqNumber(nodePath));
+        nodeInfo = new NodeInfo(id,nodePath);
+    }
+
+    /**
+     * 根节点rootPath下的子节点
+     *
+     * @return childNode 排序集合
+     */
+    private List<NodeInfo> makeChildNodeInfo() {
+        List<String> childNode = getChildren(rootPath);
+        List<NodeInfo> childNodeInfo = new ArrayList<>(childNode.size());
+
+        for (String childNodePath : childNode) {
+            Integer id = Integer.parseInt(getPathSeqNumber(childNodePath));
+            String nodePath = rootPath + "/" + childNodePath;
+            childNodeInfo.add(new NodeInfo(id, nodePath));
+        }
+        //从小到大排序
+        childNodeInfo.sort((o1, o2) -> o1.getId().compareTo(o2.getId()));
+        return childNodeInfo;
+    }
+
+
     public boolean startByBlocking() {
-        String path = createNode(rootPath + "/", null, CreateMode.EPHEMERAL_SEQUENTIAL);
         try {
-            return leaderElection(path,null);
+            makeNodeInfo();
+            return leaderElection(false);
         } catch (KeeperException | InterruptedException e) {
             e.printStackTrace();
             return false;
         }
     }
 
-    public boolean startByCallback(ElectionCallback callback) {
-        String path = createNode(rootPath + "/", null, CreateMode.EPHEMERAL_SEQUENTIAL);
+    public boolean startByCallback() {
+        Objects.requireNonNull(callback, "ElectionCallback must be not empty");
         try {
-            return leaderElection(path,callback);
+            makeNodeInfo();
+            return leaderElection(false);
         } catch (KeeperException | InterruptedException e) {
             e.printStackTrace();
             return false;
@@ -204,7 +210,7 @@ public class ZkLeaderElectionFair {
     public static void main(String[] args) throws InterruptedException {
         CountDownLatch mainLatch = new CountDownLatch(1);
         CyclicBarrier cyclicBarrier = new CyclicBarrier(3);
-        ZkLeaderElectionFair leaderElectionFair = new ZkLeaderElectionFair("127.0.0.1:2181",8000,"/leaderRoot");
+        ZkLeaderElectionFair leaderElectionFair = new ZkLeaderElectionFair("127.0.0.1:2181",8000,"/leaderRoot",null);
 
         ExecutorService executorService = Executors.newFixedThreadPool(3);
         for (int i =0;i< 3;i++) {
