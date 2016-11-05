@@ -9,7 +9,9 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * @author zhujiajun
@@ -22,7 +24,7 @@ import java.util.concurrent.*;
  *  要能处理部分参与方等待过程中失败的情况
  *  实现2个选举方法，一个阻塞直到获得leadership，另一个竞选成功则返回true，否则返回失败，但要能支持回调
  */
-public class ZkLeaderElectionFair implements Watcher {
+public class ZkLeaderElectionFair {
 
     private NodeInfo nodeInfo;
     private ZooKeeper zooKeeper;
@@ -105,15 +107,35 @@ public class ZkLeaderElectionFair implements Watcher {
     }
 
 
-    @Override
-    public void process(WatchedEvent event) {
-        if (Event.EventType.NodeDeleted.equals(event.getType())) {
-            if (!event.getPath().equals(nodeInfo.getNodePath())) {
-                try {
-                    leaderElection(true);
-                } catch (KeeperException | InterruptedException e) {
-                    e.printStackTrace();
+    private class PrevNodeWatch implements Watcher {
+
+        @Override
+        public void process(WatchedEvent event) {
+            if (Event.EventType.NodeDeleted.equals(event.getType())) {
+                System.err.format("%s delete\n", event.getPath());
+                String nodePath = nodeInfo.getNodePath();
+                if (!event.getPath().equals(nodePath)) {
+                    if (!exists(nodePath, null)) {
+                        System.err.format("Node %s already delete\n",nodePath);
+                        leaderLatch.countDown();
+                        return;
+                    }
+                    List<NodeInfo> childNodeInfo = makeChildNodeInfo();
+                    if (nodeInfo.getId().equals(childNodeInfo.get(0).getId())) {
+                        System.err.format("Node %s become leader in watch\n", nodePath);
+                        if (callback == null)
+                            leaderLatch.countDown();
+                        else
+                            callback.becomeLeader(nodePath);
+
+                        System.err.format("%s become leader\n", nodePath);
+                    } else {
+                        String prevWatchPath = getPrevPath(childNodeInfo);
+                        System.err.format("%s 比childNode中最小的%s 大,开始watch前一个node %s,等待...\n", nodePath, childNodeInfo.get(0).getNodePath(),prevWatchPath);
+                        exists(prevWatchPath, new PrevNodeWatch());
+                    }
                 }
+                System.err.println("nodePath: " + nodePath);
             }
         }
     }
@@ -132,27 +154,25 @@ public class ZkLeaderElectionFair implements Watcher {
     }
 
     private boolean leaderElection(boolean isWatchHandler) throws KeeperException, InterruptedException {
+        boolean isSuccess = false;
         String nodePath = nodeInfo.getNodePath();
+        System.err.println("nodePath: " + nodePath);
         List<NodeInfo> childNodeInfo = makeChildNodeInfo();
         if (nodeInfo.getId().equals(childNodeInfo.get(0).getId())) {
-            if (isWatchHandler && exists(nodePath, null)) {
-                System.err.format("Node %s become leader in watch\n", nodePath);
-                if (callback == null)
-                    leaderLatch.countDown();
-                else
-                    callback.becomeLeader(nodePath);
-            }
             System.err.format("%s become leader\n", nodePath);
-            return true;
+            isSuccess = true;
         } else {
             String prevWatchPath = getPrevPath(childNodeInfo);
-            System.err.format("%s 比childNode中最小的大,开始watch前一个node %s,等待...\n", nodePath, prevWatchPath);
-            exists(prevWatchPath, this);
+            System.err.format("%s 比childNode中最小的%s 大,开始watch前一个node %s,等待...\n", nodePath, childNodeInfo.get(0).getNodePath(),prevWatchPath);
+            exists(prevWatchPath, new PrevNodeWatch());
             if (callback == null) {
+                System.err.format("%s begin await\n",nodePath);
                 leaderLatch.await();//阻塞等待watch得到通知并再次选举leader成功
-                return true;
-            } else return false;
+                //得到通知后，还需要再判断下nodePath是否存在，因为可能宕机的节点也会收到删除节点通知
+                isSuccess = exists(nodePath, null);
+            }
         }
+        return isSuccess;
     }
 
     /**
@@ -184,7 +204,8 @@ public class ZkLeaderElectionFair implements Watcher {
     }
 
 
-    public boolean startByBlocking() {
+    public boolean start(boolean isBlocking) {
+        if (isBlocking) Objects.requireNonNull(callback, "ElectionCallback must be not empty");
         try {
             makeNodeInfo();
             return leaderElection(false);
@@ -193,42 +214,31 @@ public class ZkLeaderElectionFair implements Watcher {
             return false;
         }
     }
-
-    public boolean startByCallback() {
-        Objects.requireNonNull(callback, "ElectionCallback must be not empty");
-        try {
-            makeNodeInfo();
-            return leaderElection(false);
-        } catch (KeeperException | InterruptedException e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-
 
     public static void main(String[] args) throws InterruptedException {
         CountDownLatch mainLatch = new CountDownLatch(1);
-        CyclicBarrier cyclicBarrier = new CyclicBarrier(3);
-        ZkLeaderElectionFair leaderElectionFair = new ZkLeaderElectionFair("127.0.0.1:2181",8000,"/leaderRoot",null);
-
         ExecutorService executorService = Executors.newFixedThreadPool(3);
+
+        ElectionCallback callback = new ElectionCallback() {
+
+            @Override
+            public void becomeLeader(String leaderPath) {
+                System.err.format("callback %s leader\n",leaderPath);
+            }
+        };
+
         for (int i =0;i< 3;i++) {
             executorService.execute(new Runnable() {
                 @Override
                 public void run() {
-                    try {
-                        System.out.println(Thread.currentThread().getName() + ":waiting");
-                        cyclicBarrier.await();
-                    } catch (InterruptedException | BrokenBarrierException e) {
-                        e.printStackTrace();
-                    }
-                    System.out.println(Thread.currentThread().getName() + ":do work");
-                    boolean b = leaderElectionFair.startByBlocking();
+                    ZkLeaderElectionFair leaderElectionFair = new ZkLeaderElectionFair("127.0.0.1:2181", 8000, "/leaderRoot", null);
+                    boolean b = leaderElectionFair.start(false);
                     System.out.println(Thread.currentThread().getName() + ":" + b);
                 }
             });
         }
+
+
         executorService.shutdown();
         mainLatch.await();
     }
