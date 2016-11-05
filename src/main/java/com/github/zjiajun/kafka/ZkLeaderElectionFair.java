@@ -9,9 +9,8 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author zhujiajun
@@ -24,7 +23,7 @@ import java.util.concurrent.Executors;
  *  要能处理部分参与方等待过程中失败的情况
  *  实现2个选举方法，一个阻塞直到获得leadership，另一个竞选成功则返回true，否则返回失败，但要能支持回调
  */
-public class ZkLeaderElectionFair {
+public class ZkLeaderElectionFair implements Watcher {
 
     private NodeInfo nodeInfo;
     private ZooKeeper zooKeeper;
@@ -107,72 +106,90 @@ public class ZkLeaderElectionFair {
     }
 
 
-    private class PrevNodeWatch implements Watcher {
-
-        @Override
-        public void process(WatchedEvent event) {
-            if (Event.EventType.NodeDeleted.equals(event.getType())) {
-                System.err.format("%s delete\n", event.getPath());
-                String nodePath = nodeInfo.getNodePath();
-                if (!event.getPath().equals(nodePath)) {
-                    if (!exists(nodePath, null)) {
-                        System.err.format("Node %s already delete\n",nodePath);
-                        leaderLatch.countDown();
-                        return;
-                    }
-                    List<NodeInfo> childNodeInfo = makeChildNodeInfo();
-                    if (nodeInfo.getId().equals(childNodeInfo.get(0).getId())) {
-                        System.err.format("Node %s become leader in watch\n", nodePath);
-                        if (callback == null)
-                            leaderLatch.countDown();
-                        else
-                            callback.becomeLeader(nodePath);
-
-                        System.err.format("%s become leader\n", nodePath);
-                    } else {
-                        String prevWatchPath = getPrevPath(childNodeInfo);
-                        System.err.format("%s 比childNode中最小的%s 大,开始watch前一个node %s,等待...\n", nodePath, childNodeInfo.get(0).getNodePath(),prevWatchPath);
-                        exists(prevWatchPath, new PrevNodeWatch());
+    @Override
+    public void process(WatchedEvent event) {
+        if (Event.EventType.NodeDeleted.equals(event.getType())) {
+            System.err.format("节点 %s 被删除或者宕机\n", event.getPath());
+            String nodePath = nodeInfo.getNodePath();
+            System.err.format("节点 %s 收到删除通知\n", nodePath);
+            if (!event.getPath().equals(nodePath)) {
+                if (!exists(nodePath, null)) {
+                    System.err.format("节点 %s 已经删除或者宕机, 不需要选举\n",nodePath);
+                    leaderLatch.countDown();
+                } else {
+                    try {
+                        leaderElection(true);
+                    } catch (KeeperException | InterruptedException e) {
+                        e.printStackTrace();
                     }
                 }
-                System.err.println("nodePath: " + nodePath);
             }
         }
     }
 
 
+
+
+
+    /**
+     * 实际的领导选举
+     * @param isWatchHandler 是否在watch内处理的领导选举
+     * @return 成功/失败
+     * @throws KeeperException
+     * @throws InterruptedException
+     */
+    private boolean leaderElection(boolean isWatchHandler) throws KeeperException, InterruptedException {
+        boolean isSuccess = false;
+        String nodePath = nodeInfo.getNodePath();
+        System.err.format("节点 %s 开始选举领导者\n", nodePath);
+        List<NodeInfo> childNodeInfo = makeChildNodeInfo();
+        NodeInfo minNodeInfo = childNodeInfo.get(0);//排序后，第一个既是最小的节点
+        if (this.nodeInfo.getId().equals(minNodeInfo.getId())) {
+            if (callback == null && isWatchHandler) {
+                leaderLatch.countDown();
+            } else if (callback != null) {
+                System.err.format("非阻塞模式，节点 %s 成为领导者,开始回调",nodePath);
+                callback.becomeLeader(nodePath);
+            }
+            System.err.format("节点 %s 成为领导者\n", nodePath);
+            isSuccess = true;
+        } else {
+            String prevWatchPath = getPrevPath(childNodeInfo);
+            System.err.format("节点 %s 比childNode中最小的节点 %s 大, 开始监听前一个节点 %s\n", nodePath, minNodeInfo.getNodePath(), prevWatchPath);
+            exists(prevWatchPath, this);
+            if (callback == null && isWatchHandler) System.err.format("节点 %s 继续等待", nodePath); //只为了输出语句，不影响功能
+            if (callback == null && !isWatchHandler) {
+                System.err.format("阻塞模式，节点 %s 开始等待\n", nodePath);
+                leaderLatch.await();//阻塞等待watch得到通知并再次选举leader成功
+                //得到通知后，还需要再判断下nodePath是否存在，因为宕机的节点也会收到删除节点通知
+                isSuccess = exists(nodePath, null);
+            }
+        }
+        return isSuccess;
+    }
+
+
+    /**
+     * 节点字符串处理
+     *
+     * @param path /leaderRoot/0000000103
+     * @return  0000000103
+     */
     private String getPathSeqNumber(String path) {
         return path.substring(path.lastIndexOf("/") + 1, path.length());
     }
 
+    /**
+     * 获取childNode中的上一节点
+     * @param childNodeInfo childNode
+     * @return /leaderRoot/0000000102
+     */
     private String getPrevPath(List<NodeInfo> childNodeInfo) {
         //利用NodeInfo的equals判断
         int index = childNodeInfo.indexOf(nodeInfo);
         if (index > 0)
             return childNodeInfo.get(index - 1).getNodePath(); //获取前一个path
         throw new RuntimeException("getPrevPath error");
-    }
-
-    private boolean leaderElection(boolean isWatchHandler) throws KeeperException, InterruptedException {
-        boolean isSuccess = false;
-        String nodePath = nodeInfo.getNodePath();
-        System.err.println("nodePath: " + nodePath);
-        List<NodeInfo> childNodeInfo = makeChildNodeInfo();
-        if (nodeInfo.getId().equals(childNodeInfo.get(0).getId())) {
-            System.err.format("%s become leader\n", nodePath);
-            isSuccess = true;
-        } else {
-            String prevWatchPath = getPrevPath(childNodeInfo);
-            System.err.format("%s 比childNode中最小的%s 大,开始watch前一个node %s,等待...\n", nodePath, childNodeInfo.get(0).getNodePath(),prevWatchPath);
-            exists(prevWatchPath, new PrevNodeWatch());
-            if (callback == null) {
-                System.err.format("%s begin await\n",nodePath);
-                leaderLatch.await();//阻塞等待watch得到通知并再次选举leader成功
-                //得到通知后，还需要再判断下nodePath是否存在，因为可能宕机的节点也会收到删除节点通知
-                isSuccess = exists(nodePath, null);
-            }
-        }
-        return isSuccess;
     }
 
     /**
@@ -185,7 +202,7 @@ public class ZkLeaderElectionFair {
     }
 
     /**
-     * 根节点rootPath下的子节点
+     * 根节点rootPath下的子节点信息
      *
      * @return childNode 排序集合
      */
@@ -205,7 +222,7 @@ public class ZkLeaderElectionFair {
 
 
     public boolean start(boolean isBlocking) {
-        if (isBlocking) Objects.requireNonNull(callback, "ElectionCallback must be not empty");
+        if (!isBlocking) Objects.requireNonNull(callback, "ElectionCallback must be not empty");
         try {
             makeNodeInfo();
             return leaderElection(false);
@@ -217,7 +234,21 @@ public class ZkLeaderElectionFair {
 
     public static void main(String[] args) throws InterruptedException {
         CountDownLatch mainLatch = new CountDownLatch(1);
-        ExecutorService executorService = Executors.newFixedThreadPool(3);
+
+        ThreadFactory threadFactory = new ThreadFactory() {
+
+            private final AtomicInteger threadNumber = new AtomicInteger(1);
+
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r, "客户端机器-" + threadNumber.getAndIncrement());
+                if (t.isDaemon()) t.setDaemon(false);
+                if (t.getPriority() != Thread.NORM_PRIORITY) t.setPriority(Thread.NORM_PRIORITY);
+                return t;
+            }
+        };
+
+        ExecutorService executorService = new ThreadPoolExecutor(3,3,0, TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(10),threadFactory);
 
         ElectionCallback callback = new ElectionCallback() {
 
@@ -232,12 +263,11 @@ public class ZkLeaderElectionFair {
                 @Override
                 public void run() {
                     ZkLeaderElectionFair leaderElectionFair = new ZkLeaderElectionFair("127.0.0.1:2181", 8000, "/leaderRoot", null);
-                    boolean b = leaderElectionFair.start(false);
-                    System.out.println(Thread.currentThread().getName() + ":" + b);
+                    boolean b = leaderElectionFair.start(true);
+                    System.out.println(Thread.currentThread().getName() + "选举领导是否成功 : " + b);
                 }
             });
         }
-
 
         executorService.shutdown();
         mainLatch.await();
