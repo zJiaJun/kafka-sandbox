@@ -97,6 +97,14 @@ public class ZkLeaderElectionFair implements Watcher {
         return rePath;
     }
 
+    private void deleteNode(String path) {
+        try {
+            zooKeeper.delete(path, -1);
+        } catch (InterruptedException | KeeperException e) {
+            e.printStackTrace();
+        }
+    }
+
     private List<String> getChildren(String path) {
         List<String> children = null;
         try {
@@ -239,5 +247,16 @@ public class ZkLeaderElectionFair implements Watcher {
         }
     }
 
+    /**
+     * 放弃领导者选举
+     * @return 是否成功
+     */
+    public boolean stop() {
+        if (nodeInfo != null) {
+           deleteNode(nodeInfo.getNodePath());
+            return true;
+        }
+        return false;
+    }
 
 }
