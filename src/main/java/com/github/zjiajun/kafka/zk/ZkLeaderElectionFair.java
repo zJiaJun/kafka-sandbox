@@ -1,6 +1,5 @@
-package com.github.zjiajun.kafka;
+package com.github.zjiajun.kafka.zk;
 
-import com.github.zjiajun.kafka.zk.NodeInfo;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 
@@ -9,8 +8,8 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author zhujiajun
@@ -19,9 +18,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  *  Zookeeper 原生api实现LeaderElection 公平模式
  *
  *  用Zookeeper原生提供的SDK实现“先到先得——公平模式”的Leader Election。即各参与方都注册ephemeral_sequential节点，ID较小者为leader
- *  每个竞选失败的参与方，只能watch前一个
- *  要能处理部分参与方等待过程中失败的情况
- *  实现2个选举方法，一个阻塞直到获得leadership，另一个竞选成功则返回true，否则返回失败，但要能支持回调
+ *  1.每个竞选失败的参与方，只能watch前一个
+ *  2.要能处理部分参与方等待过程中失败的情况
+ *  3.实现2个选举方法，一个阻塞直到获得leadership，另一个竞选成功则返回true，否则返回失败，但要能支持回调
  */
 public class ZkLeaderElectionFair implements Watcher {
 
@@ -29,12 +28,14 @@ public class ZkLeaderElectionFair implements Watcher {
     private ZooKeeper zooKeeper;
     private final String rootPath;
     private final ElectionCallback callback;
-    private final CountDownLatch initZkLatch = new CountDownLatch(1);
     private final CountDownLatch leaderLatch = new CountDownLatch(1);
 
-    private interface ElectionCallback {
 
-        void becomeLeader(String leaderPath);
+    public ZkLeaderElectionFair(ZooKeeper zooKeeper, String rootPath, ElectionCallback callback) {
+        this.zooKeeper = zooKeeper;
+        this.rootPath = rootPath;
+        this.callback = callback;
+        initRootPath();
     }
 
     public ZkLeaderElectionFair(String connectString, int sessionTimeout, String rootPath, ElectionCallback callback) {
@@ -46,6 +47,7 @@ public class ZkLeaderElectionFair implements Watcher {
 
     private void initZk(String connectString, int sessionTimeout) {
         try {
+            CountDownLatch initZkLatch = new CountDownLatch(1);
             zooKeeper = new ZooKeeper(connectString, sessionTimeout, event -> {
                 switch (event.getState()) {
                     case SyncConnected:
@@ -59,7 +61,7 @@ public class ZkLeaderElectionFair implements Watcher {
                         break;
                 }
             });
-            initZkLatch.await();
+            initZkLatch.await(10, TimeUnit.SECONDS);
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
@@ -106,6 +108,10 @@ public class ZkLeaderElectionFair implements Watcher {
     }
 
 
+    /**
+     * Watch
+     * @param event Watch事件
+     */
     @Override
     public void process(WatchedEvent event) {
         if (Event.EventType.NodeDeleted.equals(event.getType())) {
@@ -128,9 +134,6 @@ public class ZkLeaderElectionFair implements Watcher {
     }
 
 
-
-
-
     /**
      * 实际的领导选举
      * @param isWatchHandler 是否在watch内处理的领导选举
@@ -148,7 +151,7 @@ public class ZkLeaderElectionFair implements Watcher {
             if (callback == null && isWatchHandler) {
                 leaderLatch.countDown();
             } else if (callback != null) {
-                System.err.format("非阻塞模式，节点 %s 成为领导者,开始回调",nodePath);
+                System.err.format("非阻塞模式，节点 %s 成为领导者,开始回调\n",nodePath);
                 callback.becomeLeader(nodePath);
             }
             System.err.format("节点 %s 成为领导者\n", nodePath);
@@ -170,7 +173,7 @@ public class ZkLeaderElectionFair implements Watcher {
 
 
     /**
-     * 节点字符串处理
+     * 节点字符串处理返回顺序字符串
      *
      * @param path /leaderRoot/0000000103
      * @return  0000000103
@@ -220,7 +223,11 @@ public class ZkLeaderElectionFair implements Watcher {
         return childNodeInfo;
     }
 
-
+    /**
+     * 选举领导者方法
+     * @param isBlocking true 阻塞直到成功成为领导者 false 不管是否成功,马上返回,成为领导者后有回调方法执行
+     * @return 是否选举成功
+     */
     public boolean start(boolean isBlocking) {
         if (!isBlocking) Objects.requireNonNull(callback, "ElectionCallback must be not empty");
         try {
@@ -232,44 +239,5 @@ public class ZkLeaderElectionFair implements Watcher {
         }
     }
 
-    public static void main(String[] args) throws InterruptedException {
-        CountDownLatch mainLatch = new CountDownLatch(1);
 
-        ThreadFactory threadFactory = new ThreadFactory() {
-
-            private final AtomicInteger threadNumber = new AtomicInteger(1);
-
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread t = new Thread(r, "客户端机器-" + threadNumber.getAndIncrement());
-                if (t.isDaemon()) t.setDaemon(false);
-                if (t.getPriority() != Thread.NORM_PRIORITY) t.setPriority(Thread.NORM_PRIORITY);
-                return t;
-            }
-        };
-
-        ExecutorService executorService = new ThreadPoolExecutor(3,3,0, TimeUnit.MILLISECONDS,new ArrayBlockingQueue<>(10),threadFactory);
-
-        ElectionCallback callback = new ElectionCallback() {
-
-            @Override
-            public void becomeLeader(String leaderPath) {
-                System.err.format("callback %s leader\n",leaderPath);
-            }
-        };
-
-        for (int i =0;i< 3;i++) {
-            executorService.execute(new Runnable() {
-                @Override
-                public void run() {
-                    ZkLeaderElectionFair leaderElectionFair = new ZkLeaderElectionFair("127.0.0.1:2181", 8000, "/leaderRoot", null);
-                    boolean b = leaderElectionFair.start(true);
-                    System.out.println(Thread.currentThread().getName() + "选举领导是否成功 : " + b);
-                }
-            });
-        }
-
-        executorService.shutdown();
-        mainLatch.await();
-    }
 }
