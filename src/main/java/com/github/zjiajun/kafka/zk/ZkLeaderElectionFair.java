@@ -237,7 +237,11 @@ public class ZkLeaderElectionFair implements Watcher {
      * @return 是否选举成功
      */
     public boolean start(boolean isBlocking) {
-        if (!isBlocking) Objects.requireNonNull(callback, "ElectionCallback must be not empty");
+        //通过是否设置callback不优雅,可以优化
+        if (isBlocking && Objects.nonNull(callback))
+            throw new RuntimeException("使用阻塞模式, ElectionCallback必须为null");
+        else if (!isBlocking)
+            Objects.requireNonNull(callback, "ElectionCallback必须不为空");
         try {
             makeNodeInfo();
             return leaderElection(false);
