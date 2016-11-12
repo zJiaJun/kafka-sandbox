@@ -20,7 +20,7 @@ import java.util.Properties;
 public class Consumer082 {
 
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
 //        args = new String[]{"127.0.0.1:2181/kafka0.8.2.2", "test-topic", "group1", "consumer1"};
         args = new String[]{"node1:2181,node2:2181,node3:2181/kafka0.8.2.2", "test", "group1", "consumer1"};
         String zk = args[0];
@@ -30,10 +30,10 @@ public class Consumer082 {
         Properties properties = new Properties();
         properties.put("zookeeper.connect",zk);
         properties.put("group.id",groupid);
-        properties.put("zookeeper.session.timeout.ms", "400");
-        properties.put("zookeeper.sync.time.ms", "200");
-        properties.put("autooffset.reset", "largest");
-        properties.put("autocommit.enable", "true");
+        properties.put("zookeeper.session.timeout.ms", "5000");
+        properties.put("zookeeper.sync.time.ms", "5000");
+        properties.put("auto.offset.reset", "largest");
+        properties.put("auto.commit.enable", "true");
         properties.put("auto.commit.interval.ms", "1000");
 
         ConsumerConfig consumerConfig = new ConsumerConfig(properties);
@@ -41,8 +41,7 @@ public class Consumer082 {
 
         Map<String, Integer> topicCountMap = new HashMap<>();
         topicCountMap.put(topic, 1);
-        Map<String, List<KafkaStream<byte[], byte[]>>> consumerMap =
-                consumerConnector.createMessageStreams(topicCountMap);
+        Map<String, List<KafkaStream<byte[], byte[]>>> consumerMap = consumerConnector.createMessageStreams(topicCountMap);
 
         KafkaStream<byte[], byte[]> stream1 = consumerMap.get(topic).get(0);
         for (MessageAndMetadata<byte[], byte[]> messageAndMetadata : stream1) {

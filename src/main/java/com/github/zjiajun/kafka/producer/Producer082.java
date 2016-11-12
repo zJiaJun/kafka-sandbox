@@ -1,12 +1,14 @@
 package com.github.zjiajun.kafka.producer;
 
 import com.github.zjiajun.kafka.config.Config;
-import com.github.zjiajun.kafka.partitioner.RandomPartitioner;
+import com.github.zjiajun.kafka.partitioner.RoundRobinPartitioner;
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
 import kafka.serializer.StringEncoder;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 /**
@@ -24,7 +26,7 @@ public class Producer082 {
         properties.put("producer.type","sync");
         properties.put("serializer.class", StringEncoder.class.getCanonicalName());
         properties.put("key.serializer.class", StringEncoder.class.getCanonicalName());
-        properties.put("partitioner.class", RandomPartitioner.class.getCanonicalName());
+        properties.put("partitioner.class", RoundRobinPartitioner.class.getCanonicalName());
         properties.put("request.required.acks","-1");
 
         //Async use
@@ -36,17 +38,17 @@ public class Producer082 {
 
         ProducerConfig producerConfig = new ProducerConfig(properties);
         Producer<String,String> producer = new Producer<>(producerConfig);
-        /*
+
         List<KeyedMessage<String,String>> keyedMessages = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3;j++) {
-                KeyedMessage<String, String> keyedMessage = new KeyedMessage<>("test-topic", String.valueOf(i), "message_" + i + "_" + j);
+//            for (int j = 0; j < 3;j++) {
+                KeyedMessage<String, String> keyedMessage = new KeyedMessage<>("test", String.valueOf(i), "message2_" + i);
                 keyedMessages.add(keyedMessage);
-            }
-        }*/
+//            }
+        }
 
         KeyedMessage<String,String> msg = new KeyedMessage<>("test","key","cluster kafka");
-        producer.send(msg);
+        producer.send(keyedMessages);
         System.out.println(System.currentTimeMillis() - watch + " :ms");
         producer.close();
     }
