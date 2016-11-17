@@ -22,7 +22,7 @@ public class Producer082 {
     public static void main(String[] args) {
         long watch = System.currentTimeMillis();
         Properties properties = new Properties();
-        properties.put("metadata.broker.list", Config.clusterBrokerList());
+        properties.put("metadata.broker.list", Config.standaloneBrokerList());
         properties.put("producer.type","sync");
         properties.put("serializer.class", StringEncoder.class.getCanonicalName());
         properties.put("key.serializer.class", StringEncoder.class.getCanonicalName());
@@ -41,13 +41,13 @@ public class Producer082 {
 
         List<KeyedMessage<String,String>> keyedMessages = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
-//            for (int j = 0; j < 3;j++) {
-                KeyedMessage<String, String> keyedMessage = new KeyedMessage<>("test", String.valueOf(i), "message2_" + i);
+            for (int j = 0; j < 3;j++) {
+                KeyedMessage<String, String> keyedMessage = new KeyedMessage<>("test", String.valueOf(i), i + "_message_" + j);
                 keyedMessages.add(keyedMessage);
-//            }
+            }
         }
 
-        KeyedMessage<String,String> msg = new KeyedMessage<>("test","key","cluster kafka");
+//        KeyedMessage<String,String> msg = new KeyedMessage<>("test-topic","key","cluster kafka");
         producer.send(keyedMessages);
         System.out.println(System.currentTimeMillis() - watch + " :ms");
         producer.close();

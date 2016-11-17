@@ -21,8 +21,8 @@ public class Consumer082 {
 
 
     public static void main(String[] args) throws InterruptedException {
-//        args = new String[]{"127.0.0.1:2181/kafka0.8.2.2", "test-topic", "group1", "consumer1"};
-        args = new String[]{"node1:2181,node2:2181,node3:2181/kafka0.8.2.2", "test", "group1", "consumer1"};
+        args = new String[]{"127.0.0.1:2181/kafka0.8.2.2", "test", "group1", "consumer1"};
+//        args = new String[]{"node1:2181,node2:2181,node3:2181/kafka0.8.2.2", "test", "group1", "consumer1"};
         String zk = args[0];
         String topic = args[1];
         String groupid = args[2];
@@ -30,11 +30,11 @@ public class Consumer082 {
         Properties properties = new Properties();
         properties.put("zookeeper.connect",zk);
         properties.put("group.id",groupid);
-        properties.put("zookeeper.session.timeout.ms", "5000");
-        properties.put("zookeeper.sync.time.ms", "5000");
+        properties.put("zookeeper.session.timeout.ms", "10000");
+        properties.put("zookeeper.sync.time.ms", "10000");
         properties.put("auto.offset.reset", "largest");
         properties.put("auto.commit.enable", "true");
-        properties.put("auto.commit.interval.ms", "1000");
+        properties.put("auto.commit.interval.ms", "5000");
 
         ConsumerConfig consumerConfig = new ConsumerConfig(properties);
         ConsumerConnector consumerConnector = Consumer.createJavaConsumerConnector(consumerConfig);
@@ -43,8 +43,8 @@ public class Consumer082 {
         topicCountMap.put(topic, 1);
         Map<String, List<KafkaStream<byte[], byte[]>>> consumerMap = consumerConnector.createMessageStreams(topicCountMap);
 
-        KafkaStream<byte[], byte[]> stream1 = consumerMap.get(topic).get(0);
-        for (MessageAndMetadata<byte[], byte[]> messageAndMetadata : stream1) {
+        KafkaStream<byte[], byte[]> stream = consumerMap.get(topic).get(0);
+        for (MessageAndMetadata<byte[], byte[]> messageAndMetadata : stream) {
             String message =
                     String.format("Consumer ID:%s, Topic:%s, GroupID:%s, PartitionID:%s, Offset:%s, Message Key:%s, Message Payload: %s",
                             consumerid,
