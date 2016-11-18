@@ -21,7 +21,7 @@ public class Consumer082 {
 
 
     public static void main(String[] args) throws InterruptedException {
-        args = new String[]{"127.0.0.1:2181/kafka0.8.2.2", "test", "group1", "consumer1"};
+        args = new String[]{"127.0.0.1:2181/kafka0.8.2.2", "compaction-test", "group1", "consumer1"};
 //        args = new String[]{"node1:2181,node2:2181,node3:2181/kafka0.8.2.2", "test", "group1", "consumer1"};
         String zk = args[0];
         String topic = args[1];

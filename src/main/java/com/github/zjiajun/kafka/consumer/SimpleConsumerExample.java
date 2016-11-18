@@ -19,7 +19,7 @@ public class SimpleConsumerExample {
 
     public static void main(String[] args) {
 
-        String topic = "test";
+        String topic = "compaction-test";
         FetchRequest fetchRequest = new FetchRequestBuilder()
                 .addFetch(topic, 0, 0, 10000).clientId("testClient").build();
 
@@ -31,7 +31,6 @@ public class SimpleConsumerExample {
         for (MessageAndOffset messageAndOffset : messageAndOffsets) {
             System.out.println("offset : " + messageAndOffset.offset());
             Message message = messageAndOffset.message();
-            System.out.println(message);
             ByteBuffer key = message.key();
             byte [] keyBytes = new byte[key.limit()];
             key.get(keyBytes);

@@ -42,7 +42,7 @@ public class Producer082 {
         List<KeyedMessage<String,String>> keyedMessages = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3;j++) {
-                KeyedMessage<String, String> keyedMessage = new KeyedMessage<>("test", String.valueOf(i), i + "_message_" + j);
+                KeyedMessage<String, String> keyedMessage = new KeyedMessage<>("compaction-test", String.valueOf(i), i + "_message_" + j);
                 keyedMessages.add(keyedMessage);
             }
         }
