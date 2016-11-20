@@ -27,7 +27,7 @@ public class Producer082 {
         properties.put("serializer.class", StringEncoder.class.getCanonicalName());
         properties.put("key.serializer.class", StringEncoder.class.getCanonicalName());
         properties.put("partitioner.class", RoundRobinPartitioner.class.getCanonicalName());
-        properties.put("request.required.acks","-1");
+        properties.put("request.required.acks","0");
 
         //Async use
         properties.put("queue.buffering.max.ms","5000");
@@ -40,15 +40,16 @@ public class Producer082 {
         Producer<String,String> producer = new Producer<>(producerConfig);
 
         List<KeyedMessage<String,String>> keyedMessages = new ArrayList<>();
+        /*
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3;j++) {
                 KeyedMessage<String, String> keyedMessage = new KeyedMessage<>("compaction-test", String.valueOf(i), i + "_message_" + j);
                 keyedMessages.add(keyedMessage);
             }
-        }
+        }*/
 
-//        KeyedMessage<String,String> msg = new KeyedMessage<>("test-topic","key","cluster kafka");
-        producer.send(keyedMessages);
+        KeyedMessage<String,String> msg = new KeyedMessage<>("test","key","cluster kafka");
+        producer.send(msg);
         System.out.println(System.currentTimeMillis() - watch + " :ms");
         producer.close();
     }

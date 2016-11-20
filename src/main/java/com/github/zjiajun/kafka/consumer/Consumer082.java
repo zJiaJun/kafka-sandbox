@@ -1,5 +1,6 @@
 package com.github.zjiajun.kafka.consumer;
 
+import com.github.zjiajun.kafka.config.kafkaProperties;
 import kafka.consumer.Consumer;
 import kafka.consumer.ConsumerConfig;
 import kafka.consumer.KafkaStream;
@@ -27,16 +28,9 @@ public class Consumer082 {
         String topic = args[1];
         String groupid = args[2];
         String consumerid = args[3];
-        Properties properties = new Properties();
-        properties.put("zookeeper.connect",zk);
-        properties.put("group.id",groupid);
-        properties.put("zookeeper.session.timeout.ms", "10000");
-        properties.put("zookeeper.sync.time.ms", "10000");
-        properties.put("auto.offset.reset", "largest");
-        properties.put("auto.commit.enable", "true");
-        properties.put("auto.commit.interval.ms", "5000");
 
-        ConsumerConfig consumerConfig = new ConsumerConfig(properties);
+        Properties consumerProp = kafkaProperties.consumerProp(zk, groupid);
+        ConsumerConfig consumerConfig = new ConsumerConfig(consumerProp);
         ConsumerConnector consumerConnector = Consumer.createJavaConsumerConnector(consumerConfig);
 
         Map<String, Integer> topicCountMap = new HashMap<>();
