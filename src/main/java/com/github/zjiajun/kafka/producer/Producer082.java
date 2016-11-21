@@ -48,7 +48,7 @@ public class Producer082 {
             }
         }*/
 
-        KeyedMessage<String,String> msg = new KeyedMessage<>("test","key","cluster kafka");
+        KeyedMessage<String,String> msg = new KeyedMessage<>("test","key","time kafka");
         producer.send(msg);
         System.out.println(System.currentTimeMillis() - watch + " :ms");
         producer.close();

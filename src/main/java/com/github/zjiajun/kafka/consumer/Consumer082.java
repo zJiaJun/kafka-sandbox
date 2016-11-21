@@ -39,12 +39,12 @@ public class Consumer082 {
 
         KafkaStream<byte[], byte[]> stream = consumerMap.get(topic).get(0);
         for (MessageAndMetadata<byte[], byte[]> messageAndMetadata : stream) {
-            String message =
-                    String.format("Consumer ID:%s, Topic:%s, GroupID:%s, PartitionID:%s, Offset:%s, Message Key:%s, Message Payload: %s",
-                            consumerid,
-                            messageAndMetadata.topic(), groupid, messageAndMetadata.partition(),
-                            messageAndMetadata.offset(), new String(messageAndMetadata.key()), new String(messageAndMetadata.message()));
-            System.err.println(message);
+//            String message =
+//                    String.format("Consumer ID:%s, Topic:%s, GroupID:%s, PartitionID:%s, Offset:%s, Message Key:%s, Message Payload: %s",
+//                            consumerid,
+//                            messageAndMetadata.topic(), groupid, messageAndMetadata.partition(),
+//                            messageAndMetadata.offset(), new String(messageAndMetadata.key()), new String(messageAndMetadata.message()));
+//            System.err.println(message);
         }
 
     }

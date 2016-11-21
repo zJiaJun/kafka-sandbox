@@ -19,7 +19,7 @@ public class SimpleConsumerExample {
 
     public static void main(String[] args) {
 
-        String topic = "compaction-test";
+        String topic = "test";
         FetchRequest fetchRequest = new FetchRequestBuilder()
                 .addFetch(topic, 0, 0, 10000).clientId("testClient").build();
 

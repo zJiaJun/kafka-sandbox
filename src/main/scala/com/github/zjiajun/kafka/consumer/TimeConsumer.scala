@@ -18,17 +18,21 @@ object TimeConsumer extends App {
   val topic = "compaction-test"
   val clientId = "timeClient"
 
-  val simpleConsumer = new SimpleConsumer(hostAndPort(0),hostAndPort(1).toInt,10000,4096,clientId)
+//  val time = System.currentTimeMillis() - 3*24*60*60*1000
+  val time =  OffsetRequest.LatestTime
+
+  val debugSoTime = 60 * 60 * 1000
+  val simpleConsumer = new SimpleConsumer(hostAndPort(0),hostAndPort(1).toInt, debugSoTime, 100 * 1024, clientId)
 
   val brokerList = ClientUtils.parseBrokerList(standaloneBrokerList)
-  val topicMetadataResponse = ClientUtils.fetchTopicMetadata(Set(topic),brokerList,clientId,10000)
+  val topicMetadataResponse = ClientUtils.fetchTopicMetadata(Set(topic),brokerList,clientId, debugSoTime)
 
-  val offsetRequest = OffsetRequest(requestInfo = Map(TopicAndPartition(topic,0) -> PartitionOffsetRequestInfo(OffsetRequest.EarliestTime,1)),
-    clientId = clientId, replicaId = Request.OrdinaryConsumerId)
+  val topicAndPartition = TopicAndPartition(topic,0)
+  val offsetRequest = OffsetRequest(requestInfo = Map(topicAndPartition -> PartitionOffsetRequestInfo(time,1)))
 
   val offsetResponse = simpleConsumer.getOffsetsBefore(offsetRequest)
 
-  val partitionErrorAndOffsets = offsetResponse.partitionErrorAndOffsets(TopicAndPartition(topic,0))
+  val partitionErrorAndOffsets = offsetResponse.partitionErrorAndOffsets(topicAndPartition)
 
   val offset = partitionErrorAndOffsets.error match {
     case 0 => partitionErrorAndOffsets.offsets
