@@ -15,7 +15,7 @@ object TimeConsumer extends App {
 
   val standaloneBrokerList: String = Config.standaloneBrokerList()
   val hostAndPort = standaloneBrokerList.split(":")
-  val topic = "compaction-test"
+  val topic = "test"
   val clientId = "timeClient"
 
 //  val time = System.currentTimeMillis() - 3*24*60*60*1000
