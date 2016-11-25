@@ -33,7 +33,7 @@ public class ZkHandler {
 
     public static void main(String[] args) {
         ZkHandler zkHandler = new ZkHandler();
-        zkHandler.deleteNode("/kafka0.10.0.1");
+        zkHandler.deleteNode("/kafka0.10.1.0");
 
     }
 }
