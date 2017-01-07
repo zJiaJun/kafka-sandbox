@@ -1,0 +1,9 @@
+kafka-topics.sh --zookeeper 127.0.0.1:2181/kafka0.10.1.0 --create --topic orders --partitions 3 --replication-factor 1
+
+kafka-topics.sh --zookeeper 127.0.0.1:2181/kafka0.10.1.0 --create --topic users --partitions 3 --replication-factor 1
+
+kafka-topics.sh --zookeeper 127.0.0.1:2181/kafka0.10.1.0 --create --topic items --partitions 3 --replication-factor 1
+
+kafka-topics.sh --zookeeper 127.0.0.1:2181/kafka0.10.1.0 --create --topic orderuser-repartition-by-item --partitions 3 --replication-factor 1
+
+kafka-topics.sh --zookeeper 127.0.0.1:2181/kafka0.10.1.0 --create --topic gender-amount --partitions 3 --replication-factor 1
