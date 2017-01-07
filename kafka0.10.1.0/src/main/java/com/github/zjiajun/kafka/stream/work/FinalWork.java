@@ -58,10 +58,10 @@ public class FinalWork {
                             v3.setItemList(newItemlist);
                             return v3;
                         }
-                        , TimeWindows.of(1000 * 5).advanceBy(1000 * 5)
+                        , TimeWindows.of(1000 * 60 * 60).advanceBy(1000 * 5)
                         , "gender-amount-state-store").toStream();
         kStream.map((Windowed<String> window, GroupInfo groupInfo) -> {
-            return new KeyValue<String, String>(window.key(),  groupInfo.printTop10(window.window().start(), window.window().end()));
+            return new KeyValue<String, String>(window.key(),  groupInfo.result(window.window().start(), window.window().end()));
         }).to(Serdes.String(), Serdes.String(), "gender-amount");
         KafkaStreams kafkaStreams = new KafkaStreams(streamBuilder, props);
         kafkaStreams.cleanUp();
@@ -97,10 +97,9 @@ public class FinalWork {
         public void setItemList(List<GroupItemInfo> itemList) {
             this.itemList = itemList;
         }
-        /**
-         * 根据金额汇总倒序
-         */
-        private List<GroupItemInfo> sortBySumDesc(Collection<GroupItemInfo> allItems){
+
+
+        private List<GroupItemInfo> sort(Collection<GroupItemInfo> allItems){
             List<GroupItemInfo> result = new ArrayList<GroupItemInfo>();
             result.addAll(allItems);
             result.sort((o1, o2) -> {
@@ -114,15 +113,12 @@ public class FinalWork {
             });
             return result;
         }
-        /**
-         * 找回前10名
-         */
-        public String printTop10(long startDate, long endDate){
-            double allAmount = 0.0;
+
+
+        public String result(long startDate, long endDate){
             Map<String, GroupItemInfo> groupMap = new HashMap<String, GroupItemInfo>();
             for(GroupItemInfo item : itemList){
                 String key = item.getItemName();
-                allAmount += item.getSum();
                 if(groupMap.containsKey(key)){
                     GroupItemInfo oldItem = groupMap.get(key);
                     oldItem.setCount(oldItem.getCount() + item.getCount());
@@ -131,14 +127,18 @@ public class FinalWork {
                     groupMap.put(key, item);
                 }
             }
-            List<GroupItemInfo> sortedResult = sortBySumDesc(groupMap.values());
+            List<GroupItemInfo> sortedResult = sort(groupMap.values());
+            int resultSize = sortedResult.size();
             StringBuilder sb =  new StringBuilder();
             for(int i = 1; i <= 10 ; i++){
-                if(sortedResult.size() >= i && sortedResult.get(i-1) != null){
+                if(sb.length() > 0){
+                    sb.append("\n");
+                }
+                if(i <= resultSize && sortedResult.get(i-1) != null){
                     GroupItemInfo oneItem = sortedResult.get(i-1);
                     sb.append(startDate).append(",").append(endDate).append(",").append(itemType).append(",").append(oneItem.getItemName()).append(",")
-                            .append(oneItem.getCount()).append(",").append(oneItem.getPrice()).append(",").append(oneItem.getSum()).append(",").append(allAmount)
-                            .append(",").append(i).append("\n");
+                            .append(oneItem.getCount()).append(",").append(oneItem.getPrice()).append(",").append(oneItem.getSum())
+                            .append(",").append(i);
                 }else{
                     break;
                 }
