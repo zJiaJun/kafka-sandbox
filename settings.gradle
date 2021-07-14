@@ -1,1 +1,1 @@
-include 'kafka0.8.2.2','kafka0.10.1.0'
+include 'kafka0.8.2.2','kafka0.10.1.0','kafka2.8'
